@@ -9,7 +9,7 @@ Key features:
 - File search over vector stores
 - Code interpreter for data analysis
 - MCP servers for private data access
-- Background mode for long-running tasks
+- Background mode with polling for long-running tasks
 - max_tool_calls for cost/latency control
 """
 
@@ -18,9 +18,12 @@ import logging
 import time
 from typing import Any
 
+import httpx
 from openai import AsyncOpenAI
 
 from .._constants import (
+    OPENAI_BACKGROUND_MAX_POLLS,
+    OPENAI_BACKGROUND_POLL_INTERVAL,
     OPENAI_DEFAULT_MAX_TOKENS,
     OPENAI_DEFAULT_MODEL,
     OPENAI_DEFAULT_TIMEOUT,
@@ -69,7 +72,18 @@ class OpenAIDeepResearchProvider(DeepResearchProviderBase):
             self._client = client
             self._api_key = None
         elif api_key is not None:
-            self._client = AsyncOpenAI(api_key=api_key)
+            # Configure httpx with a very long timeout for Deep Research
+            # Deep Research can take 15+ minutes for complex queries
+            http_timeout = httpx.Timeout(
+                connect=30.0,  # Connection timeout
+                read=timeout,  # Read timeout (matches our overall timeout)
+                write=30.0,  # Write timeout
+                pool=30.0,  # Pool timeout
+            )
+            self._client = AsyncOpenAI(
+                api_key=api_key,
+                timeout=http_timeout,
+            )
             self._api_key = api_key
         else:
             self._client = None
@@ -77,6 +91,8 @@ class OpenAIDeepResearchProvider(DeepResearchProviderBase):
 
         self.timeout = timeout
         self.debug = debug
+        self._poll_interval = OPENAI_BACKGROUND_POLL_INTERVAL
+        self._max_polls = OPENAI_BACKGROUND_MAX_POLLS
 
     @property
     def is_available(self) -> bool:
@@ -128,6 +144,11 @@ class OpenAIDeepResearchProvider(DeepResearchProviderBase):
 
         Returns:
             DeepResearchResult with report and metadata
+
+        Note:
+            Deep Research can take 10-20+ minutes for complex queries.
+            By default, we use background mode with polling to avoid
+            HTTP connection timeouts.
         """
         if not self._client:
             raise RuntimeError("OpenAI client not initialized - missing API key")
@@ -157,8 +178,10 @@ class OpenAIDeepResearchProvider(DeepResearchProviderBase):
         else:
             params["max_output_tokens"] = OPENAI_DEFAULT_MAX_TOKENS
 
-        # Background mode for long-running tasks
-        if request.background:
+        # Background mode is the default for Deep Research to avoid HTTP timeouts
+        # Deep Research tasks can take 10-20+ minutes
+        use_background = request.background if request.background is not None else True
+        if use_background:
             params["background"] = True
 
         # Limit tool calls for cost/latency control
@@ -168,16 +191,20 @@ class OpenAIDeepResearchProvider(DeepResearchProviderBase):
         timeout = request.timeout or self.timeout
 
         logger.info(
-            f"[OpenAI Deep Research] Starting research with model={model}, tools={[t.get('type') for t in tools]}"
+            f"[OpenAI Deep Research] Starting research with model={model}, "
+            f"background={use_background}, tools={[t.get('type') for t in tools]}"
         )
 
         start_time = time.time()
 
         try:
-            response = await asyncio.wait_for(
-                self._client.responses.create(**params),
-                timeout=timeout,
-            )
+            # Submit the request
+            response = await self._client.responses.create(**params)
+
+            # If using background mode, poll until completion
+            if use_background:
+                response = await self._poll_for_completion(response, timeout, start_time)
+
             elapsed_ms = int((time.time() - start_time) * 1000)
             logger.info(f"[OpenAI Deep Research] Completed in {elapsed_ms}ms")
 
@@ -187,6 +214,67 @@ class OpenAIDeepResearchProvider(DeepResearchProviderBase):
             elapsed_ms = int((time.time() - start_time) * 1000)
             logger.error(f"[OpenAI Deep Research] Timeout after {elapsed_ms}ms (limit: {timeout}s)")
             raise
+
+    async def _poll_for_completion(self, response: Any, timeout: float, start_time: float) -> Any:
+        """Poll for background task completion.
+
+        Args:
+            response: Initial response with response ID
+            timeout: Maximum time to wait
+            start_time: When the request started
+
+        Returns:
+            Completed response object
+
+        Raises:
+            TimeoutError: If polling exceeds timeout
+            RuntimeError: If response fails
+        """
+        response_id = getattr(response, "id", None)
+        if not response_id:
+            # No ID means it completed synchronously
+            return response
+
+        status = getattr(response, "status", None)
+        poll_count = 0
+
+        while status in ("queued", "in_progress", "searching"):
+            # Check timeout
+            elapsed = time.time() - start_time
+            if elapsed >= timeout:
+                raise TimeoutError(f"Background task timed out after {elapsed:.1f}s")
+
+            # Check poll limit
+            poll_count += 1
+            if poll_count > self._max_polls:
+                raise TimeoutError(f"Exceeded max polling attempts ({self._max_polls})")
+
+            # Log progress periodically
+            if poll_count % 12 == 1:  # Every minute at 5s intervals
+                logger.info(
+                    f"[OpenAI Deep Research] Polling... status={status}, elapsed={elapsed:.0f}s, polls={poll_count}"
+                )
+
+            await asyncio.sleep(self._poll_interval)
+
+            # Retrieve updated status (client is guaranteed non-None since research() checks it)
+            assert self._client is not None
+            response = await self._client.responses.retrieve(response_id)
+            status = getattr(response, "status", None)
+
+        # Check final status
+        if status == "failed":
+            error = getattr(response, "error", None)
+            error_msg = getattr(error, "message", "Unknown error") if error else "Unknown error"
+            raise RuntimeError(f"Deep Research failed: {error_msg}")
+
+        if status == "cancelled":
+            raise RuntimeError("Deep Research was cancelled")
+
+        if status != "completed":
+            logger.warning(f"[OpenAI Deep Research] Unexpected final status: {status}")
+
+        return response
 
     def _build_input(self, request: DeepResearchRequest) -> list[dict[str, Any]]:
         """Build input messages for the Responses API."""

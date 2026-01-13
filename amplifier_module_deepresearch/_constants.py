@@ -36,8 +36,15 @@ OPENAI_MODELS = [
 # Default OpenAI model
 OPENAI_DEFAULT_MODEL = "o3-deep-research"
 
-# OpenAI timeout (Deep Research can take 10+ minutes)
-OPENAI_DEFAULT_TIMEOUT = 600.0
+# OpenAI timeout (Deep Research can take 15+ minutes for complex queries)
+# This is the asyncio.wait_for timeout - httpx client timeout is set separately
+OPENAI_DEFAULT_TIMEOUT = 1800.0  # 30 minutes
+
+# Polling interval for background mode (seconds)
+OPENAI_BACKGROUND_POLL_INTERVAL = 5.0
+
+# Max polling attempts before giving up
+OPENAI_BACKGROUND_MAX_POLLS = 360  # 30 minutes at 5s intervals
 
 # OpenAI max output tokens
 OPENAI_DEFAULT_MAX_TOKENS = 100000
