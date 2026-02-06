@@ -4,14 +4,14 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from amplifier_module_deepresearch import (
+from amplifier_module_tool_deepresearch import (
     DeepResearchProvider,
     DeepResearchRequest,
     DeepResearchResult,
     estimate_task_complexity,
     select_provider,
 )
-from amplifier_module_deepresearch.providers import (
+from amplifier_module_tool_deepresearch.providers import (
     AnthropicDeepResearchProvider,
     Citation,
     OpenAIDeepResearchProvider,

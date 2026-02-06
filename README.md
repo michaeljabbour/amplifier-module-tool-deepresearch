@@ -1,4 +1,4 @@
-# amplifier-module-deepresearch
+# amplifier-module-tool-deepresearch
 
 Multi-provider deep research module for Amplifier, enabling automated research workflows with comprehensive citation support.
 
@@ -15,13 +15,13 @@ Multi-provider deep research module for Amplifier, enabling automated research w
 ## Installation
 
 ```bash
-uv add git+https://github.com/michaeljabbour/amplifier-module-deepresearch
+uv add git+https://github.com/michaeljabbour/amplifier-module-tool-deepresearch
 ```
 
 ## Quick Start
 
 ```python
-from amplifier_module_deepresearch import DeepResearchProvider
+from amplifier_module_tool_deepresearch import DeepResearchProvider
 
 # Initialize with API keys (or use environment variables)
 provider = DeepResearchProvider(
@@ -120,7 +120,7 @@ for step in result.reasoning_steps:
 Improve research quality with clarification and rewriting:
 
 ```python
-from amplifier_module_deepresearch import (
+from amplifier_module_tool_deepresearch import (
     generate_clarifying_questions,
     rewrite_research_prompt,
     estimate_task_complexity,
@@ -153,7 +153,7 @@ Add to your bundle's `tools:` section:
 ```yaml
 tools:
   - module: tool-deepresearch
-    source: git+https://github.com/michaeljabbour/amplifier-module-deepresearch@main
+    source: git+https://github.com/michaeljabbour/amplifier-module-tool-deepresearch@main
     config:
       default_provider: anthropic    # or "openai"
       default_model: claude-sonnet-4-5-20250929  # optional, provider uses its default
@@ -163,7 +163,7 @@ tools:
 ### Programmatic Mount
 
 ```python
-from amplifier_module_deepresearch import mount
+from amplifier_module_tool_deepresearch import mount
 
 await mount(coordinator, {
     "default_provider": "anthropic",

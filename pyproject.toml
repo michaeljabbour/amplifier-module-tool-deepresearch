@@ -1,5 +1,5 @@
 [project]
-name = "amplifier-module-deepresearch"
+name = "amplifier-module-tool-deepresearch"
 version = "0.1.0"
 description = "Multi-provider deep research module for Amplifier - automated research with OpenAI and Anthropic"
 license = "MIT"
@@ -14,7 +14,7 @@ dependencies = [
 ]
 
 [project.entry-points."amplifier.modules"]
-tool-deepresearch = "amplifier_module_deepresearch:mount"
+tool-deepresearch = "amplifier_module_tool_deepresearch:mount"
 
 [build-system]
 requires = [
@@ -37,7 +37,7 @@ dev = [
 
 [tool.hatch.build.targets.wheel]
 packages = [
-    "amplifier_module_deepresearch",
+    "amplifier_module_tool_deepresearch",
 ]
 
 [tool.hatch.metadata]

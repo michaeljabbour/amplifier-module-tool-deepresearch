@@ -8,7 +8,7 @@ Usage:
     # In bundle configuration
     tools:
       - module: tool-deepresearch
-        source: git+https://github.com/michaeljabbour/amplifier-module-deepresearch@main
+        source: git+https://github.com/michaeljabbour/amplifier-module-tool-deepresearch@main
         config:
           default_provider: anthropic  # or openai
           default_model: claude-sonnet-4-5
