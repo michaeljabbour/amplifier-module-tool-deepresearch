@@ -24,6 +24,8 @@ import logging
 import os
 from typing import Any
 
+from amplifier_core import ModuleCoordinator
+
 from ._constants import (
     ANTHROPIC_DEFAULT_MODEL,
     OPENAI_DEFAULT_MODEL,
@@ -485,7 +487,7 @@ The research may take 1-5 minutes depending on complexity."""
             )
 
 
-async def mount(coordinator: Any, config: dict[str, Any] | None = None) -> None:
+async def mount(coordinator: ModuleCoordinator, config: dict[str, Any] | None = None) -> None:
     """Mount the deep research tool into the Amplifier coordinator.
 
     This registers the deep_research tool with the coordinator,
